@@ -48,4 +48,4 @@ Events
 Changes log:
 
 - Remove ready event	
-	
+- Accept thumbs have the same value	
