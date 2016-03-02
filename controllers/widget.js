@@ -1,184 +1,161 @@
+// https://github.com/viezel/TiDraggable
+var Draggable = require('ti.draggable');
+
+var G, params;
+var dataReady, sliderReady;
+
+init(arguments[0] || {});
+function init(args) {
+  	var exclude = ['id', 'clickable'];
+    $.slider.applyProperties( _.omit(args, exclude) );
+}
+
 /*
- args = {
+ _params = {
  	min: 0,
  	max: 100,
- 	sensitive: 1,
- 	tssclass: '',
  	values: [20, 80]
  }
  * */
-var args = arguments[0] || {},
-	vars = {};
+exports.load = function(_G, _params) {
+	params && unload();
+	
+	G = _G;
+	params = _params;
+	dataReady = true;
+	loadUI();
+};
 
-var measurement;
-OS_ANDROID && (measurement = require('alloy/measurement'));
+function unload() {
+	$.slider.removeAllChildren();
+	G = params = null;
+	dataReady = false;
+};
+exports.unload = unload;
 
-init();
-function init() {
-	// normalize data
-	
-	args.max = parseInt(args.max, 10);
-	args.min = parseInt(args.min, 10);
-	args.values = JSON.parse(args.values);
-	args.sensitive = args.sensitive ? parseInt(args.sensitive, 10) : 1;
-	
-	vars.posXs = [];
-	
-	//
-	
-	var prefix = 'slider-' + args.tssclass,
-		thumbHalfWidth = $.createStyle({ classes: prefix + '-thumb' }).width / 2;
-	
-	$.addClass($.slider, prefix);
-	$.addClass($.tracks, prefix + '-track', { left: thumbHalfWidth, right: thumbHalfWidth });
-	
-	for(var i = 0, ii = args.values.length; i < ii; i++){
-		$.tracks.add( $.UI.create('View', { classes: prefix + '-track ' + prefix + '-track-' + i, left: 0, width: 0, zIndex: ii - i }) );
-		$.thumbs.add( $.UI.create('View', { thumbIndex: i, classes: prefix + '-thumb ' + prefix + '-thumb-' + i }) );
-	};
+function sliderPostlayout(e) {
+  	this.removeEventListener('postlayout', sliderPostlayout);
+  	sliderReady = true;
+  	loadUI();
 }
 
-function postlayout(e) {
-  	this.removeEventListener('postlayout', postlayout);
-  	
-  	var trackWidth = this.rect.width,
-  		partWidth  = trackWidth / (args.max - args.min);
-  	vars.partWidth = partWidth;
-  	
-  	vars.maxX = trackWidth;
-  	
-  	updateValues();
-}
-
-function updateValues() {
-  	var max = args.max,
-		min = args.min,
-		values = args.values,
-		partWidth = vars.partWidth,
-		tracks = $.tracks.children,
-		thumbs = $.thumbs.children;
+function loadUI() {
+	if (dataReady !== true || sliderReady !== true) { return; }
 	
-	for(var i = 0, ii = values.length; i < ii; i++){
-	  	var value = values[i];
-	  	if (value < min) { values[i] = value = min; }
-	  	else if (value > max) { values[i] = value = max; }
-	  	
-  		var posX = (value - min) * partWidth;
-  		
-  		vars.posXs[i] = posX;
-  		
-		tracks[i].width = posX;
-		thumbs[i].left = posX;
+  	var fullWidth = $.slider.rect.width;
+  	var draggableWidth;
+  	
+  	var baseTrack = G.UI.create('View', { classes: 'imc-slider-track' });
+  	$.slider.add(baseTrack);
+  	
+  	var values = params.values;
+  	for(var i = 0, ii = values.length; i < ii; i++){
+  		var thumb = Draggable.createView( G.createStyle({
+			thumbIndex: i, 
+			classes: 'imc-slider-thumb imc-slider-thumb-' + i,
+			draggableConfig: { enabledOnLongpress: true, minLeft: 0, minTop: 0, maxTop: 0 },
+			zIndex: ii + i + 1
+		}) ); 
 		
-		$.trigger('change', { index: i, value: value, pos: posX });
+  		var track = G.UI.create('View', { classes: 'imc-slider-track imc-slider-track-' + i, zIndex: ii - i });
+		
+		var thumbHalfWidth 	= thumb.width / 2;
+		draggableWidth 		= fullWidth - thumbHalfWidth - (thumb.width - thumbHalfWidth);
+		var unitWidth 		= draggableWidth / (params.max - params.min);
+		var valueWidth 		= (values[i] - params.min) * unitWidth;
+		
+		thumb.draggable.setConfig({
+		  	maxLeft: draggableWidth
+		});
+		thumb.left = valueWidth;
+		thumb.unitWidth = unitWidth;
+		thumb.draggableWidth = draggableWidth;
+		track.width = valueWidth;
+		track.left = thumbHalfWidth;
+		
+		thumb.addEventListener("start", touchstart);
+		thumb.addEventListener("move", touchmove);
+		thumb.addEventListener("end", touchend);
+		thumb.addEventListener("cancel", touchend);
+		
+		$.slider.add(track);
+		$.slider.add(thumb);
+		
+		$.trigger('change', { index: i, value: values[i], pos: valueWidth + Math.floor(thumbHalfWidth) });
 	};
+	
+	baseTrack.width = draggableWidth;
 }
 
 function touchstart(e) {
-	e.cancelBubble = true;
-	
-	var index = e.source.thumbIndex;
-	if (index == null) { return; }
-	
-	vars.touchX = e.x;
-	if (OS_ANDROID) { vars.touchX = measurement.pxToDP(e.x); }
-	
-	var index = e.source.thumbIndex;
-	vars.cacheX = vars.posXs[index];
-	vars.cacheValue = args.values[index];
-	
-	e.source.zIndex = 1;
-}
-
-function touchend(e) {
-	e.cancelBubble = true;
-	
-	var index = e.source.thumbIndex;
-	if (index == null) { return; }
-	
-	var posX  = vars.posXs[index];
-	
-	var track = $.tracks.children[index];	
-	if (track.width == 0) { track.width = 1; }	
-	track.animate({ width: posX });
-	
-	e.source.zIndex = 0;
-	
-	vars.touchX = vars.cacheX = vars.cacheValue = null;
-}
-
-function touchcancel(e) {
-	e.cancelBubble = true;
-	
-	var index = e.source.thumbIndex;
-	if (index == null) { return; }
-	
-	var posX = vars.cacheX;
-		
-	vars.posXs[index] = posX;
-	
-	$.thumbs.children[index].animate({ left: posX });
-	
-	args.values[index] = vars.cacheValue;
-	
-	$.trigger('change', { index: index, value: vars.cacheValue, pos: posX });
-	
-	e.source.zIndex = 0;
-	
-	vars.touchX = vars.cacheX = vars.cacheValue = null;
+	var thumb = e.source;
+	thumb._zIndex = thumb.zIndex;
+	thumb.zIndex = 100;
 }
 
 function touchmove(e) {
-	e.cancelBubble = true;
+	var thumb = e.source;
+	var posX  = e.center.x;
+	var value = Math.floor((posX / thumb.unitWidth) + params.min);
+	$.trigger('change', { index: thumb.thumbIndex, value: value, pos: posX });
+}
+
+function touchend(e) {
+  	var thumb = e.source;
+  	var index = thumb.thumbIndex;
+	thumb.zIndex = thumb._zIndex;
 	
-	var index = e.source.thumbIndex;
-	if (index == null) { return; }
-	
-	if (vars.x != null && Math.abs(vars.x - e.x) >= args.sensitive) { return; }
-	vars.x = e.x;
-	
-  	var pos = e.source.convertPointToView({ x: e.x, y: e.y }, $.thumbs);
-  	if (OS_ANDROID) { pos.x = measurement.pxToDP(pos.x); }
-  	
-  	pos.x -= vars.touchX;
-  	if (pos.x < 0 || pos.x > vars.maxX) { return; }
-  	
-  	var posX = pos.x;
-  		
-  	var prev = vars.posXs[index - 1];
-  	if (prev && posX < prev) { return; }
-  	var next = vars.posXs[index + 1];
-  	if (next && posX > next) { return; }
-  	
-  	vars.posXs[index] = posX;
-  	
-  	$.thumbs.children[index].left = posX;
-  	
-  	var value = (posX / vars.partWidth) + args.min;
-  	value = Math[ value - parseInt(value) >= 0.5 ? 'ceil' : 'floor' ](value);
-  	args.values[index] = value;
-	
+	var posX  = e.center.x;
+	var value = Math.floor((posX / thumb.unitWidth) + params.min);
 	$.trigger('change', { index: index, value: value, pos: posX });
+	
+	if (index - 1 >= 0) {
+		var prevThumb = getViews(index - 1).thumb;
+		prevThumb.draggable.setConfig({ maxLeft: e.left });
+	}
+	
+	if (index + 1 <= params.values.length - 1) {
+		var nextThumb = getViews(index + 1).thumb;
+		nextThumb.draggable.setConfig({ minLeft: e.left });
+	}
 }
 
 exports.getValue = function() {
-	return args.values;
+	return params.values;
 };
 
 function setValue(values) {
-	args.values = values;
-	updateValues();
+	params.values = values;
+	
+	var children = $.slider.children;
+	
+	for(var i = 0, ii = values.length; i < ii; i++){
+		var views = getViews(i);
+	  	var track = views.track;
+	  	var thumb = views.thumb;
+	  	
+	  	var value = values[i];
+  		var valueWidth = (value - params.min) * thumb.unitWidth;
+		track.width = valueWidth;
+		thumb.left  = valueWidth;
+		
+		$.trigger('change', { index: i, value: value, pos: valueWidth + Math.floor(thumb.width / 2) });
+	};
 };
 exports.setValue = setValue;
 
-exports.update = function(params) {
-    if (!params) { return; }
-    
-    args = params;
-    
-    if (params.min && params.max) {
-        vars.partWidth = $.tracks.rect.width / (params.max - params.min);
-    }
-    
-    setValue(params.values);
-};
+function getViews(index) {
+	/*
+	children at 0 is baseTrack
+	index: track, thumb
+	0: 1, 2
+  	1: 3, 4
+  	2: 5, 6
+  	==> track: index * 2 + 1
+  	==> thumb: index * 2 + 2
+	 * */
+  	
+  	index = index * 2;
+  	var children = $.slider.children;
+  	return { track: children[index + 1], thumb: children[index + 2] };
+}

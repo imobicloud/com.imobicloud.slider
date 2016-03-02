@@ -1,10 +1,9 @@
 /*
-// xxx is tssclass
-".slider-xxx": { width: 227, height: 20 }
-	".slider-xxx-track": { height: 2, backgroundColor: '#a8adb0', borderRadius: 2 }
-	".slider-xxx-track-0": {  }
-	".slider-xxx-track-1": { backgroundColor: '#abdb92' }
-	".slider-xxx-thumb": { width: 19, height: 20, backgroundImage: '/images/event_create/slider-handle.png' }
-	".slider-xxx-thumb-0": {  }
-	".slider-xxx-thumb-1": {  }	
+".imc-slider": { width: 226, height: 20, top: 32 }
+	".imc-slider-track": { height: 2, backgroundColor: '#a8adb0', borderRadius: 2 }
+	".imc-slider-track-0": {  }
+	".imc-slider-track-1": { backgroundColor: '#abdb92' }
+	".imc-slider-thumb": { width: 19, height: 20, backgroundImage: '/images/event_create/slider-handle.png' }
+	".imc-slider-thumb-0": {  }
+	".imc-slider-thumb-1": {  }		
 */

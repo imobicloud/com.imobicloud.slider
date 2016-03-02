@@ -1,6 +1,3 @@
 <Alloy>
-	<View id="slider">
-		<View id="tracks" onPostlayout="postlayout"/>
-		<View id="thumbs" onTouchstart="touchstart" onTouchend="touchend" onTouchcancel="touchcancel" onTouchmove="touchmove"/>
-	</View>
+	<View id="slider" onPostlayout="sliderPostlayout"/>
 </Alloy>
