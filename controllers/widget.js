@@ -1,6 +1,10 @@
 // https://github.com/viezel/TiDraggable
 var Draggable = require('ti.draggable');
 
+if (OS_ANDROID) {
+	var measurement = require('alloy/measurement');
+}
+
 var G, params;
 var dataReady, sliderReady;
 
@@ -81,7 +85,7 @@ function loadUI() {
 		$.slider.add(track);
 		$.slider.add(thumb);
 		
-		$.trigger('change', { index: i, value: values[i], pos: valueWidth + Math.floor(thumbHalfWidth) });
+		$.trigger('change', { index: i, value: values[i], pos: valueWidth });
 	};
 	
 	baseTrack.width = draggableWidth;
@@ -95,7 +99,14 @@ function touchstart(e) {
 
 function touchmove(e) {
 	var thumb = e.source;
-	var posX  = e.center.x;
+	
+	var posX;
+	if (OS_IOS) {
+		posX = e.left;
+	} else {
+		posX = Math.floor(measurement.pxToDP(e.left));
+	}
+	
 	var value = Math.floor((posX / thumb.unitWidth) + params.min);
 	$.trigger('change', { index: thumb.thumbIndex, value: value, pos: posX });
 }
@@ -105,18 +116,24 @@ function touchend(e) {
   	var index = thumb.thumbIndex;
 	thumb.zIndex = thumb._zIndex;
 	
-	var posX  = e.center.x;
+	var posX;
+	if (OS_IOS) {
+		posX = e.left;
+	} else {
+		posX = Math.floor(measurement.pxToDP(e.left));
+	}
+	
 	var value = Math.floor((posX / thumb.unitWidth) + params.min);
 	$.trigger('change', { index: index, value: value, pos: posX });
 	
 	if (index - 1 >= 0) {
 		var prevThumb = getViews(index - 1).thumb;
-		prevThumb.draggable.setConfig({ maxLeft: e.left });
+		prevThumb.draggable.setConfig({ maxLeft: posX });
 	}
 	
 	if (index + 1 <= params.values.length - 1) {
 		var nextThumb = getViews(index + 1).thumb;
-		nextThumb.draggable.setConfig({ minLeft: e.left });
+		nextThumb.draggable.setConfig({ minLeft: posX });
 	}
 }
 
@@ -139,7 +156,7 @@ function setValue(values) {
 		track.width = valueWidth;
 		thumb.left  = valueWidth;
 		
-		$.trigger('change', { index: i, value: value, pos: valueWidth + Math.floor(thumb.width / 2) });
+		$.trigger('change', { index: i, value: value, pos: valueWidth });
 	};
 };
 exports.setValue = setValue;
