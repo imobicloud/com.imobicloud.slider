@@ -1,17 +1,122 @@
-// https://github.com/viezel/TiDraggable
-var Draggable = require('ti.draggable');
+/*
+ Download this module
+ https://github.com/viezel/TiDraggable
+ * */
 
 if (OS_ANDROID) {
 	var measurement = require('alloy/measurement');
 }
 
-var G, params;
-var dataReady, sliderReady;
+/*
+ args = {
+ 	min: 20,
+ 	max: 100,
+ 	values: [0, 100]
+ }
+ * */
+var args = $.args;
+var baseLeft = 0,
+	baseWidth = 0;
+var tracks = [];
+var thumbs = [],
+	thumbCount = 0;
+var unitWidth = 0;
 
-init(arguments[0] || {});
-function init(args) {
-  	var exclude = ['id', 'clickable'];
-    $.slider.applyProperties( _.omit(args, exclude) );
+init();
+function init() {
+  	var exclude = ['id', 'children', 'min', 'max', 'values'];
+    $.container.applyProperties( _.omit(args, exclude) );
+    
+    if (args.children) {
+    	var actions = {
+    		base: loadBase,
+    		track: loadTrack,
+    		thumb: loadThumb
+    	};
+		_.each(args.children, function(child) {
+			if (child.role) {
+				var action = actions[child.role];
+				action && action(child);
+			} else {
+				$.container.add(child);
+			}
+		});
+		args.children = null;
+	}
+}
+
+// == BASE
+
+function loadBase(view) {
+	view.addEventListener('postlayout', baseReady);
+  	$.container.add(view);
+}
+
+function baseReady(e) {
+  	this.removeEventListener('postlayout', baseReady);
+  	baseLeft = this.rect.x;
+  	baseWidth = this.rect.width;
+}
+
+// == TRACKS
+
+function loadTrack(view) {
+	tracks.push(view);
+  	$.container.add(view);
+}
+
+function unloadTracks() {
+	tracks.length = 0;
+}
+
+// == THUMBNAILS
+
+function loadThumb(view) {
+	view.addEventListener('postlayout', thumbReady);
+	
+	// https://github.com/viezel/TiDraggable
+	var Draggable = require('ti.draggable');
+	
+	var thumb = Draggable.createView({
+		draggableConfig: { enabledOnLongpress: true, minTop: 0, maxTop: 0 },
+		thumbIndex: view.index, 
+		width: view.width,
+		height: Ti.UI.SIZE,
+		zIndex: 1
+	});
+	
+	thumb.addEventListener("start", touchstart);
+	thumb.addEventListener("move", touchmove);
+	thumb.addEventListener("end", touchend);
+	thumb.addEventListener("cancel", touchend);
+	
+	thumb.add(view);
+	thumbs.push(thumb);
+	
+  	$.container.add(thumb);
+}
+
+function unloadThumbs() {
+	thumbs.length = 0;
+}
+
+function thumbReady(e) {
+  	this.removeEventListener('postlayout', thumbReady);
+  	var thumb = thumbs[this.index];
+  	thumb.thumbHalf = this.rect.width / 2;
+  	thumb.thumbWidth = this.rect.width;
+  	
+  	thumbCount ++;
+  	
+  	checkDataReady();
+}
+
+function checkDataReady() {
+  	if (baseWidth != 0 && thumbCount == thumbs.length) {
+		if (args.values && args.min != null && args.max != null) {
+			loadUI();
+		}
+  	}
 }
 
 /*
@@ -21,158 +126,117 @@ function init(args) {
  	values: [20, 80]
  }
  * */
-exports.load = function(_G, _params) {
-	params && unload();
+exports.load = function(_params) {
+	_.extend(args, _params);
 	
-	G = _G;
-	params = _params;
-	dataReady = true;
+	checkDataReady();
+};
+
+exports.getValue = function() {
+	return args.values;
+};
+
+function setValue(values) {
+	args.values = values;
 	loadUI();
 };
+exports.setValue = setValue;
 
-function unload() {
-	$.slider.removeAllChildren();
-	G = params = null;
-	dataReady = false;
+exports.unload = function() {
+	unloadTracks();
+	unloadThumbs();
+    $.container.removeAllChildren();
 };
-exports.unload = unload;
 
-function sliderPostlayout(e) {
-  	this.removeEventListener('postlayout', sliderPostlayout);
-  	sliderReady = true;
-  	loadUI();
+function valueToPos(value) {
+  	return Math.floor((value - args.min) * unitWidth);
+}
+
+function posToValue(pos) {
+  	return Math.floor((pos / unitWidth) + args.min);
 }
 
 function loadUI() {
-	if (dataReady !== true || sliderReady !== true) { return; }
-	
-  	var fullWidth = $.slider.rect.width;
-  	var draggableWidth;
+	unitWidth = baseWidth / (args.max - args.min);
   	
-  	var baseTrack = G.UI.create('View', { classes: 'imc-slider-track' });
-  	$.slider.add(baseTrack);
-  	
-  	var values = params.values;
-  	for(var i = 0, ii = values.length; i < ii; i++){
-  		var thumb = Draggable.createView( G.createStyle({
-			thumbIndex: i, 
-			classes: 'imc-slider-thumb imc-slider-thumb-' + i,
-			draggableConfig: { enabledOnLongpress: true, minLeft: 0, minTop: 0, maxTop: 0 },
-			zIndex: ii + i + 1
-		}) ); 
-		
-  		var track = G.UI.create('View', { classes: 'imc-slider-track imc-slider-track-' + i, zIndex: ii - i });
-		
-		var thumbHalfWidth 	= thumb.width / 2;
-		draggableWidth 		= fullWidth - thumbHalfWidth - (thumb.width - thumbHalfWidth);
-		var unitWidth 		= draggableWidth / (params.max - params.min);
-		var valueWidth 		= (values[i] - params.min) * unitWidth;
-		
-		thumb.draggable.setConfig({
-		  	maxLeft: draggableWidth
-		});
-		thumb.left = valueWidth;
-		thumb.unitWidth = unitWidth;
-		thumb.draggableWidth = draggableWidth;
-		track.width = valueWidth;
-		track.left = thumbHalfWidth;
-		
-		thumb.addEventListener("start", touchstart);
-		thumb.addEventListener("move", touchmove);
-		thumb.addEventListener("end", touchend);
-		thumb.addEventListener("cancel", touchend);
-		
-		$.slider.add(track);
-		$.slider.add(thumb);
-		
-		$.trigger('change', { index: i, value: values[i], pos: valueWidth });
+  	var values = args.values;
+  	for (var i = 0, ii = values.length; i < ii; i++) {
+  		var value = values[i];
+  		var pos = valueToPos(value);
+  		
+  		var thumb = thumbs[i];
+  		thumb.zIndex = ii + i + 1;
+  		thumb._zIndex = thumb.zIndex;
+  		thumb.left = baseLeft + pos - thumb.thumbHalf;
+  		
+  		if (i != 0) {
+  			var prevThumb = thumbs[i - 1];
+  			prevThumb.draggable.setConfig({ maxLeft: pos });
+  			thumb.draggable.setConfig({ minLeft: prevThumb.left });
+  		} else {
+  			thumb.draggable.setConfig({ minLeft: baseLeft - thumb.thumbHalf });
+  		}
+  		
+  		var track = tracks[i];
+  		track.zIndex = ii - i;
+  		track.left = baseLeft;
+  		track.width = pos;
+  		
+		$.trigger('change', { index: i, value: value, pos: pos });
 	};
 	
-	baseTrack.width = draggableWidth;
+	var lastThumb = thumbs[thumbs.length - 1];
+	lastThumb.draggable.setConfig({ maxLeft: baseLeft + baseWidth - lastThumb.thumbHalf });
 }
 
 function touchstart(e) {
+	e.cancelBubble = true;
+	
 	var thumb = e.source;
-	thumb._zIndex = thumb.zIndex;
 	thumb.zIndex = 100;
 }
 
 function touchmove(e) {
-	var thumb = e.source;
+	e.cancelBubble = true;
 	
-	var posX;
-	if (OS_IOS) {
-		posX = e.left;
-	} else {
-		posX = Math.floor(measurement.pxToDP(e.left));
-	}
-	
-	var value = Math.floor((posX / thumb.unitWidth) + params.min);
-	$.trigger('change', { index: thumb.thumbIndex, value: value, pos: posX });
+	var thumb = e.source,
+		index = thumb.thumbIndex;
+	updateUI(index, e.left);
 }
 
 function touchend(e) {
-  	var thumb = e.source;
-  	var index = thumb.thumbIndex;
+	e.cancelBubble = true;
+	
+  	var thumb = e.source,
+		index = thumb.thumbIndex;
+	var pos = updateUI(index, e.left);
+		
 	thumb.zIndex = thumb._zIndex;
 	
-	var posX;
-	if (OS_IOS) {
-		posX = e.left;
-	} else {
-		posX = Math.floor(measurement.pxToDP(e.left));
-	}
-	
-	var value = Math.floor((posX / thumb.unitWidth) + params.min);
-	$.trigger('change', { index: index, value: value, pos: posX });
-	
 	if (index - 1 >= 0) {
-		var prevThumb = getViews(index - 1).thumb;
-		prevThumb.draggable.setConfig({ maxLeft: posX });
+		var prevThumb = thumbs[index - 1];
+		prevThumb.draggable.setConfig({ maxLeft: pos });
 	}
 	
-	if (index + 1 <= params.values.length - 1) {
-		var nextThumb = getViews(index + 1).thumb;
-		nextThumb.draggable.setConfig({ minLeft: posX });
+	if (index + 1 <= args.values.length - 1) {
+		var nextThumb = thumbs[index + 1];
+		nextThumb.draggable.setConfig({ minLeft: pos });
 	}
 }
 
-exports.getValue = function() {
-	return params.values;
-};
-
-function setValue(values) {
-	params.values = values;
+function updateUI(index, left) {
+  	var pos;
+	if (OS_IOS) {
+		pos = left;
+	} else {
+		pos = Math.floor(measurement.pxToDP(left));
+	}
 	
-	var children = $.slider.children;
+	var track = tracks[index];
+	track.width = pos;
 	
-	for(var i = 0, ii = values.length; i < ii; i++){
-		var views = getViews(i);
-	  	var track = views.track;
-	  	var thumb = views.thumb;
-	  	
-	  	var value = values[i];
-  		var valueWidth = (value - params.min) * thumb.unitWidth;
-		track.width = valueWidth;
-		thumb.left  = valueWidth;
-		
-		$.trigger('change', { index: i, value: value, pos: valueWidth });
-	};
-};
-exports.setValue = setValue;
-
-function getViews(index) {
-	/*
-	children at 0 is baseTrack
-	index: track, thumb
-	0: 1, 2
-  	1: 3, 4
-  	2: 5, 6
-  	==> track: index * 2 + 1
-  	==> thumb: index * 2 + 2
-	 * */
-  	
-  	index = index * 2;
-  	var children = $.slider.children;
-  	return { track: children[index + 1], thumb: children[index + 2] };
+	$.trigger('change', { index: index, value: posToValue(pos), pos: pos });
+	
+	return pos;
 }
+
