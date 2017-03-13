@@ -6,6 +6,7 @@
 
 Download ti.draggable and add to project
 https://github.com/viezel/TiDraggable
+https://github.com/caffeinalab/TiDraggable
 
 View
 	
