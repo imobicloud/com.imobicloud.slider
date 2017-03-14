@@ -24,7 +24,7 @@ var unitWidth = 0;
 
 init();
 function init() {
-  	var exclude = ['id', 'children', 'min', 'max', 'values'];
+  	var exclude = ['id', 'children', 'min', 'max', 'values', 'thumbAnchor0'];
     $.container.applyProperties( _.omit(args, exclude) );
     
     if (args.children) {
@@ -103,7 +103,7 @@ function unloadThumbs() {
 function thumbReady(e) {
   	this.removeEventListener('postlayout', thumbReady);
   	var thumb = thumbs[this.index];
-  	thumb.thumbHalf = this.rect.width / 2;
+  	thumb.thumbHalf = args['thumbAnchor' + this.index] || this.rect.width / 2;
   	thumb.thumbWidth = this.rect.width;
   	
   	thumbCount ++;
@@ -239,4 +239,3 @@ function updateUI(index, left) {
 	
 	return pos;
 }
-
