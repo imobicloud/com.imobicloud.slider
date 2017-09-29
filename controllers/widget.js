@@ -1,6 +1,6 @@
 /*
  Download this module
- https://github.com/viezel/TiDraggable
+ https://github.com/caffeinalab/TiDraggable/releases
  * */
 
 if (OS_ANDROID) {
@@ -24,7 +24,11 @@ var unitWidth = 0;
 
 init();
 function init() {
-  	var exclude = ['id', 'children', 'min', 'max', 'values', 'thumbAnchor0'];
+  	var exclude = [
+		'id', 'children', 
+		'min', 'max', 'values', 
+		'thumbAnchor0', 'thumbAnchor1', // 'thumbAnchor2' ... 'thumbAnchorN'
+	];
     $.container.applyProperties( _.omit(args, exclude) );
     
     if (args.children) {
@@ -54,8 +58,8 @@ function loadBase(view) {
 
 function baseReady(e) {
   	this.removeEventListener('postlayout', baseReady);
-  	baseLeft = this.rect.x;
   	baseWidth = this.rect.width;
+	baseLeft = Math.floor(($.container.rect.width - baseWidth) / 2);
 }
 
 // == TRACKS
@@ -156,6 +160,14 @@ function posToValue(pos) {
   	return Math.floor((pos / unitWidth) + args.min);
 }
 
+function leftToPos(left) {
+	if (OS_IOS) {
+		return left;
+	} else {
+		return Math.floor(measurement.pxToDP(left));
+	}
+}
+
 function loadUI() {
 	unitWidth = baseWidth / (args.max - args.min);
   	
@@ -200,16 +212,18 @@ function touchmove(e) {
 	e.cancelBubble = true;
 	
 	var thumb = e.source,
-		index = thumb.thumbIndex;
-	updateUI(index, e.left);
+		index = thumb.thumbIndex,
+		pos = leftToPos(e.left);
+		
+	updateUI(index, pos);
 }
 
 function touchend(e) {
 	e.cancelBubble = true;
 	
   	var thumb = e.source,
-		index = thumb.thumbIndex;
-	var pos = updateUI(index, e.left);
+		index = thumb.thumbIndex,
+		pos = leftToPos(e.left);
 		
 	thumb.zIndex = thumb._zIndex;
 	
@@ -222,20 +236,13 @@ function touchend(e) {
 		var nextThumb = thumbs[index + 1];
 		nextThumb.draggable.setConfig({ minLeft: pos });
 	}
+	
+	updateUI(index, pos);
 }
 
-function updateUI(index, left) {
-  	var pos;
-	if (OS_IOS) {
-		pos = left;
-	} else {
-		pos = Math.floor(measurement.pxToDP(left));
-	}
-	
+function updateUI(index, pos) {
 	var track = tracks[index];
 	track.width = pos;
 	
 	$.trigger('change', { index: index, value: posToValue(pos), pos: pos });
-	
-	return pos;
 }
